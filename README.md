@@ -17,6 +17,7 @@
 | `statusline-merged.js` | 핵심 래퍼. 외부 npm 의존성 없음(Node 내장 모듈만). vendored HUD 를 자식 프로세스로 실행해 출력을 재배치 |
 | `vendor/claude-hud/` | **claude-hud(MIT) vendoring 본**. `dist/`(런타임 .js만) + `LICENSE` + `package.json`(ESM 인식용). 플러그인 설치 불필요 |
 | `setup.ps1` | `~/.claude/` 로 래퍼 복사 + `vendor/claude-hud` → `~/.claude/statusline-hud` 복사 + `settings.json` 의 `statusLine` 블록만 갱신 |
+| `setup.bat` | `setup.ps1` 을 실행 정책 우회로 실행하는 더블클릭용 래퍼 |
 
 > claude-hud 는 MIT 라이선스라 vendoring 이 허용됩니다. `vendor/claude-hud/LICENSE` 로 고지를 포함합니다.
 
@@ -32,8 +33,11 @@
 ```powershell
 git clone https://github.com/Bluewind8791/bluewind-claude-statusline.git
 cd bluewind-claude-statusline
-.\setup.ps1
 ```
+그다음 둘 중 하나:
+- **간편 (더블클릭):** 탐색기에서 `setup.bat` 더블클릭
+- **터미널:** `.\setup.ps1` (또는 `.\setup.bat`)
+
 Claude Code 재시작 → 적용.
 
 ## 동작 원리
