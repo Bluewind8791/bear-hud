@@ -58,18 +58,11 @@ function safeExists(p) {
   try { return fs.existsSync(p); } catch { return false; }
 }
 
-// claude-hud 플러그인의 최신 버전 dist/index.js 경로를 찾는다 (버전 업데이트에 견고).
+// vendoring 한 claude-hud 의 dist/index.js 경로. setup.ps1 이 레포의
+// vendor/claude-hud 를 ~/.claude/statusline-hud 로 복사한다. (업데이트는 수동 재복사)
 function findHud() {
-  const base = path.join(os.homedir(), '.claude', 'plugins', 'cache', 'claude-hud', 'claude-hud');
-  let dirs = [];
-  try {
-    dirs = fs.readdirSync(base).filter((d) => safeExists(path.join(base, d, 'dist', 'index.js')));
-  } catch {
-    return null;
-  }
-  if (!dirs.length) return null;
-  dirs.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
-  return path.join(base, dirs[0], 'dist', 'index.js');
+  const p = path.join(os.homedir(), '.claude', 'statusline-hud', 'dist', 'index.js');
+  return safeExists(p) ? p : null;
 }
 
 // 곰 무드: bear 원본과 동일. 1분 버킷 + session_id 시드로 깜빡임 방지.
