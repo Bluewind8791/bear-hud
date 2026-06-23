@@ -30,8 +30,8 @@
 
 ### 설치
 ```powershell
-git clone <이 레포 URL> bluewind-statusline
-cd bluewind-statusline
+git clone https://github.com/Bluewind8791/bluewind-claude-statusline.git
+cd bluewind-claude-statusline
 .\setup.ps1
 ```
 Claude Code 재시작 → 적용.
