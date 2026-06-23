@@ -1,4 +1,4 @@
-# bluewind-statusline 설치 스크립트
+﻿# bluewind-statusline 설치 스크립트
 #
 # 동작:
 #   1) statusline-merged.js 를 ~/.claude/ 로 복사
