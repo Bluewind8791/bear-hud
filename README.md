@@ -16,32 +16,47 @@
 |---|---|
 | `statusline-merged.js` | 핵심 래퍼. 외부 npm 의존성 없음(Node 내장 모듈만). vendored HUD 를 자식 프로세스로 실행해 출력을 재배치 |
 | `vendor/claude-hud/` | **claude-hud(MIT) vendoring 본**. `dist/`(런타임 .js만) + `LICENSE` + `package.json`(ESM 인식용). 플러그인 설치 불필요 |
-| `setup.ps1` | `~/.claude/` 로 래퍼 복사 + `vendor/claude-hud` → `~/.claude/statusline-hud` 복사 + `settings.json` 의 `statusLine` 블록만 갱신 |
-| `setup.bat` | `setup.ps1` 을 실행 정책 우회로 실행하는 더블클릭용 래퍼 |
+| `setup.ps1` | **(Windows)** `~/.claude/` 로 래퍼 복사 + `vendor/claude-hud` → `~/.claude/statusline-hud` 복사 + `settings.json` 의 `statusLine` 블록만 갱신 |
+| `setup.bat` | **(Windows)** `setup.ps1` 을 실행 정책 우회로 실행하는 더블클릭용 래퍼 |
+| `setup.sh` | **(macOS / Linux)** `setup.ps1` 과 동일한 동작을 하는 셸 스크립트 (JSON 머지는 Node 로 처리) |
 
 > claude-hud 는 MIT 라이선스라 vendoring 이 허용됩니다. `vendor/claude-hud/LICENSE` 로 고지를 포함합니다.
 
 ## 새 PC 설치
 
 ### 전제 조건
+
+**Windows**
 1. **Node 18+** (PATH에 `node`) — `winget install OpenJS.NodeJS.LTS`
 2. **Git Bash** (PATH에 `bash`)
+
+**macOS / Linux**
+1. **Node 18+** (PATH에 `node`) — macOS: `brew install node`
+2. `bash` — macOS/리눅스에 기본 포함
 
 > claude-hud 플러그인 설치는 **불필요** — `vendor/` 에 포함돼 있음.
 
 ### 설치
-```powershell
+
+공통으로 먼저 clone:
+```
 git clone https://github.com/Bluewind8791/bluewind-claude-statusline.git
 cd bluewind-claude-statusline
 ```
-그다음 둘 중 하나:
+
+**Windows** — 둘 중 하나:
 - **간편 (더블클릭):** 탐색기에서 `setup.bat` 더블클릭
 - **터미널:** `.\setup.ps1` (또는 `.\setup.bat`)
+
+**macOS / Linux:**
+```bash
+./setup.sh
+```
 
 Claude Code 재시작 → 적용.
 
 ## 동작 원리
-- `setup.ps1` 이 쓰는 명령: `bash -c 'node "$HOME/.claude/statusline-merged.js"'`
+- 설치 스크립트(`setup.ps1` / `setup.sh`)가 쓰는 명령: `bash -c 'node "$HOME/.claude/statusline-merged.js"'`
   - 경로 하드코딩 없음: `$HOME` 은 bash 가, `node` 는 PATH 가 해석 → 머신 독립적
 - 래퍼는 `~/.claude/statusline-hud/dist/index.js`(vendored HUD)를 실행
 - HUD 가 없으면 곰 마스코트만 표시(graceful fallback)
@@ -52,7 +67,7 @@ vendoring 이라 자동 업데이트가 안 됩니다. 최신 claude-hud 를 반
 1. 플러그인으로 최신본을 받거나(`/plugin install claude-hud`) GitHub 릴리스에서 `dist/` 확보
 2. `vendor/claude-hud/dist/` 를 새 `dist/` 로 교체 (런타임 `.js` 만, `.map`/`.d.ts` 제외)
 3. `vendor/claude-hud/package.json` 의 `version` 갱신
-4. 커밋 → 각 PC 에서 pull 후 `.\setup.ps1` 재실행
+4. 커밋 → 각 PC 에서 pull 후 재설치 (Windows: `.\setup.ps1`, macOS/Linux: `./setup.sh`)
 
 ## 환경 변수 (선택)
 - `BEAR_MOOD=react` — 한도 사용률에 곰 무드 연동 (기본: 랜덤)
