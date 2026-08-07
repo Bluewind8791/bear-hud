@@ -16,7 +16,7 @@
 |---|---|
 | `statusline-merged.js` | 핵심 래퍼. 외부 npm 의존성 없음(Node 내장 모듈만). vendored HUD 를 자식 프로세스로 실행해 출력을 재배치 |
 | `vendor/claude-hud/` | **claude-hud(MIT) vendoring 본**. `dist/`(런타임 .js만) + `LICENSE` + `package.json`(ESM 인식용). 플러그인 설치 불필요 |
-| `setup.ps1` | **(Windows)** `~/.claude/` 로 래퍼 복사 + `vendor/claude-hud` → `~/.claude/statusline-hud` 복사 + `settings.json` 의 `statusLine` 블록만 갱신 |
+| `setup.ps1` | **(Windows)** `~/.claude/` 로 래퍼 복사 + `vendor/claude-hud` → `~/.claude/statusline-hud` 복사 + `settings.json` 의 `statusLine` 블록만 갱신 + claude-hud `config.json` 의 `sevenDayThreshold` 갱신 |
 | `setup.bat` | **(Windows)** `setup.ps1` 을 실행 정책 우회로 실행하는 더블클릭용 래퍼 |
 | `setup.sh` | **(macOS / Linux)** `setup.ps1` 과 동일한 동작을 하는 셸 스크립트 (JSON 머지는 Node 로 처리) |
 
@@ -60,6 +60,10 @@ Claude Code 재시작 → 적용.
   - 경로 하드코딩 없음: `$HOME` 은 bash 가, `node` 는 PATH 가 해석 → 머신 독립적
 - 래퍼는 `~/.claude/statusline-hud/dist/index.js`(vendored HUD)를 실행
 - HUD 가 없으면 곰 마스코트만 표시(graceful fallback)
+- claude-hud 는 7일 사용률이 `sevenDayThreshold`(**기본 80**) 이상일 때만 7d 세그먼트를 렌더한다.
+  그대로 두면 주간 사용률이 80% 를 넘기 전까지 `📅 weekly` 줄이 안 보이므로, 설치 스크립트가
+  `~/.claude/plugins/claude-hud/config.json` 의 `display.sevenDayThreshold` 를 `0` 으로 맞춘다
+  (파일이 이미 있으면 해당 키만 머지 — 나머지 설정 보존)
 
 ## claude-hud 업데이트 (수동)
 vendoring 이라 자동 업데이트가 안 됩니다. 최신 claude-hud 를 반영하려면:
