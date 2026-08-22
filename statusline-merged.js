@@ -29,7 +29,7 @@ process.stdin.on('end', () => {
   const bear = buildBear(data);
   const hudPath = findHud();
   if (!hudPath) {
-    printMerged(bear, []);
+    printMerged(bear, [], data);
     return;
   }
 
@@ -44,10 +44,10 @@ process.stdin.on('end', () => {
   });
   let out = '';
   child.stdout.on('data', (c) => (out += c));
-  child.on('error', () => printMerged(bear, []));
+  child.on('error', () => printMerged(bear, [], data));
   child.on('close', () => {
     const lines = out.replace(/\r/g, '').split('\n').filter((l) => l.length > 0);
-    printMerged(bear, lines);
+    printMerged(bear, lines, data);
   });
   child.stdin.on('error', () => {});
   child.stdin.write(input);
@@ -107,7 +107,7 @@ function buildBear(data) {
   };
 }
 
-function printMerged(bear, hudLines) {
+function printMerged(bear, hudLines, data = {}) {
   const RESET = '\x1b[0m', DIM = '\x1b[2m';
   const COL = 13;
   const CTX_ICON = '\u{1F4AC}'; // 💬 claude-hud 컨텍스트(identityLine) 앵커
@@ -138,9 +138,15 @@ function printMerged(bear, hudLines) {
 
   // 컨텍스트(💬) 줄: 막대를 제거하고 "session" 텍스트로 대체. 퍼센트는 claude-hud
   // 원래의 한도별 색(getContextColor)을 그대로 보존한다 → "💬 session 0%"(색 유지).
-  const pctM = rawContext.match(/(\x1b\[[0-9;]*m)?(\d+%)/);
-  const coloredPct = pctM ? `${pctM[1] || ''}${pctM[2]}\x1b[0m` : '';
-  const context = rawContext ? `💬 context ${coloredPct}`.trimEnd() : '';
+  // 단 첫 응답 전에는 퍼센트가 실측값이 아니므로(isContextUnknown 주석) 'idle' 로 대체한다.
+  let coloredValue;
+  if (isContextUnknown(data)) {
+    coloredValue = `${DIM}idle${RESET}`;
+  } else {
+    const pctM = rawContext.match(/(\x1b\[[0-9;]*m)?(\d+%)/);
+    coloredValue = pctM ? `${pctM[1] || ''}${pctM[2]}\x1b[0m` : '';
+  }
+  const context = rawContext ? `💬 context ${coloredValue}`.trimEnd() : '';
 
   // 사용량 줄을 session 과 weekly 로 분리.
   const { sessionStr, weeklyStr } = formatUsageSplit(usage);
@@ -165,6 +171,27 @@ function printMerged(bear, hudLines) {
   console.log(context ? withBear(bear.ears, context) : bearOnly(bear.ears));
   console.log(sessionStr ? withBear(bear.face, sessionStr) : bearOnly(bear.face));
   console.log(weeklyStr ? withBear(bear.body, weeklyStr) : bearOnly(bear.body));
+}
+
+// 컨텍스트 사용량을 아직 알 수 없는 상태인지 판정한다.
+//
+// 세션이 막 시작돼 첫 API 응답이 오기 전에는 Claude Code 가 stdin 으로 주는
+// context_window.used_percentage / current_usage 가 둘 다 없다. 이때 claude-hud 는
+// 실측값 대신 autocompact 버퍼 상수(22.5%)를 퍼센트로 내보내므로, 모든 새 세션이
+// 컨텍스트 크기·모델과 무관하게 항상 23% 로 시작한다(Math.round(22.5) === 23).
+// 실제로 쓴 양이 아니라 상수이므로 퍼센트 대신 idle 로 표시한다.
+//
+// used_percentage 가 없어도 토큰이 잡히면(구버전 Claude Code 는 이 필드를 안 준다)
+// claude-hud 의 수동 계산이 실측값이므로 그대로 퍼센트를 쓴다.
+function isContextUnknown(data) {
+  const cw = data.context_window;
+  if (!cw) return true;
+  const pct = cw.used_percentage;
+  if (typeof pct === 'number' && !Number.isNaN(pct)) return false;
+  const u = cw.current_usage || {};
+  const tokens =
+    (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+  return tokens === 0;
 }
 
 // 사용량 문자열(🔋 5h바 NN% (../5h) | 7d바 NN% (../7d))을

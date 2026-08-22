@@ -64,6 +64,10 @@ Claude Code 재시작 → 적용.
   그대로 두면 주간 사용률이 80% 를 넘기 전까지 `📅 weekly` 줄이 안 보이므로, 설치 스크립트가
   `~/.claude/plugins/claude-hud/config.json` 의 `display.sevenDayThreshold` 를 `0` 으로 맞춘다
   (파일이 이미 있으면 해당 키만 머지 — 나머지 설정 보존)
+- 새 세션은 첫 API 응답이 오기 전까지 컨텍스트를 `💬 context idle` 로 표시한다. 이 시점엔
+  Claude Code 가 `context_window.used_percentage` / `current_usage` 를 주지 않는데, claude-hud 가
+  그 자리에 autocompact 버퍼 상수(22.5%)를 넣어 항상 `23%` 를 내보낸다 — 실측값이 아니라 상수라
+  래퍼가 `idle` 로 갈아끼운다 (`isContextUnknown`)
 
 ## claude-hud 업데이트 (수동)
 vendoring 이라 자동 업데이트가 안 됩니다. 최신 claude-hud 를 반영하려면:
