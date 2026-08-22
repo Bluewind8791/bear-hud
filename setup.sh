@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bluewind-statusline 설치 스크립트 (macOS / Linux)
+# claude-statusline 설치 스크립트 (macOS / Linux)
 #
 # 동작:
 #   1) statusline-merged.js 를 ~/.claude/ 로 복사
