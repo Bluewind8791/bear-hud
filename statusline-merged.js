@@ -166,7 +166,10 @@ function printMerged(bear, hudLines, data = {}) {
   //   곰1   💬 context XX%                         ← 2줄: 컨텍스트
   //   곰2   ⏳ session NN% (../5h)                 ← 3줄: session
   //   곰3   📅 weekly NN% (../7d)                  ← 4줄: weekly
-  const fourthLine = [modelPart, projectPart].filter(Boolean).join(' │ ');
+  // 구분자 앞에 RESET 을 넣는다. claude-hud 의 모델 badge 는 끝에 리셋을 붙이지 않아
+  // (trimSep 이 꼬리 이스케이프를 떼어낸다) 그대로 이으면 badge 의 색이 래퍼가 넣은
+  // │ 까지 번진다. 구분자는 항상 기본색이어야 한다.
+  const fourthLine = [modelPart, projectPart].filter(Boolean).join(RESET + ' │ ');
   if (fourthLine) console.log(fourthLine);
   console.log(context ? withBear(bear.ears, context) : bearOnly(bear.ears));
   console.log(sessionStr ? withBear(bear.face, sessionStr) : bearOnly(bear.face));
