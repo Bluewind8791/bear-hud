@@ -26,9 +26,9 @@ export function dim(text) {
     return `${DIM}${text}${RESET}`;
 }
 export function getContextColor(percent) {
-    if (percent >= 85)
+    if (percent >= 80)
         return RED;
-    if (percent >= 70)
+    if (percent >= 30)
         return YELLOW;
     return GREEN;
 }
