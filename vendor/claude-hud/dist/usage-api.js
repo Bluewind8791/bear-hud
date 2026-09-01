@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import * as http from 'http';
 import * as https from 'https';
 import { execFileSync } from 'child_process';
 import { createHash } from 'crypto';
@@ -16,13 +17,17 @@ const KEYCHAIN_BACKOFF_MS = 60_000; // Backoff on keychain failures to avoid re-
 function getCachePath(homeDir) {
     return path.join(getHudPluginDir(homeDir), '.usage-cache.json');
 }
-function readCache(homeDir, now) {
+function readCache(homeDir, now, source) {
     try {
         const cachePath = getCachePath(homeDir);
         if (!fs.existsSync(cachePath))
             return null;
         const content = fs.readFileSync(cachePath, 'utf8');
         const cache = JSON.parse(content);
+        // Proxied and direct sessions share this file but report different
+        // accounts, so a differing source is a miss rather than a stale hit.
+        if (cache.source !== source)
+            return null;
         // Check TTL - use shorter TTL for failure results
         const ttl = cache.data.apiUnavailable ? CACHE_FAILURE_TTL_MS : CACHE_TTL_MS;
         if (now - cache.timestamp >= ttl)
@@ -42,14 +47,14 @@ function readCache(homeDir, now) {
         return null;
     }
 }
-function writeCache(homeDir, data, timestamp) {
+function writeCache(homeDir, data, timestamp, source) {
     try {
         const cachePath = getCachePath(homeDir);
         const cacheDir = path.dirname(cachePath);
         if (!fs.existsSync(cacheDir)) {
             fs.mkdirSync(cacheDir, { recursive: true });
         }
-        const cache = { data, timestamp };
+        const cache = { data, timestamp, source };
         fs.writeFileSync(cachePath, JSON.stringify(cache), 'utf8');
     }
     catch {
@@ -61,6 +66,7 @@ const defaultDeps = {
     fetchApi: fetchUsageApi,
     now: () => Date.now(),
     readKeychain: readKeychainCredentials,
+    resolveEndpoint: () => resolveLocalEndpoint(process.env),
 };
 /**
  * Get OAuth usage data from Anthropic API.
@@ -74,8 +80,10 @@ export async function getUsage(overrides = {}) {
     const deps = { ...defaultDeps, ...overrides };
     const now = deps.now();
     const homeDir = deps.homeDir();
+    const endpoint = deps.resolveEndpoint();
+    const source = endpointSource(endpoint);
     // Check file-based cache first
-    const cached = readCache(homeDir, now);
+    const cached = readCache(homeDir, now, source);
     if (cached) {
         return cached;
     }
@@ -92,7 +100,7 @@ export async function getUsage(overrides = {}) {
             return null;
         }
         // Fetch usage from API
-        const apiResult = await deps.fetchApi(accessToken);
+        const apiResult = await deps.fetchApi(accessToken, endpoint);
         if (!apiResult.data) {
             // API call failed, cache the failure to prevent retry storms
             const failureResult = {
@@ -104,7 +112,7 @@ export async function getUsage(overrides = {}) {
                 apiUnavailable: true,
                 apiError: apiResult.error,
             };
-            writeCache(homeDir, failureResult, now);
+            writeCache(homeDir, failureResult, now, source);
             return failureResult;
         }
         // Parse response - API returns 0-100 percentage directly
@@ -121,7 +129,7 @@ export async function getUsage(overrides = {}) {
             sevenDayResetAt,
         };
         // Write to file cache
-        writeCache(homeDir, result, now);
+        writeCache(homeDir, result, now, source);
         return result;
     }
     catch (error) {
@@ -381,20 +389,84 @@ function parseDate(dateStr) {
     }
     return date;
 }
-function fetchUsageApi(accessToken) {
-    return new Promise((resolve) => {
-        const options = {
-            hostname: 'api.anthropic.com',
-            path: '/api/oauth/usage',
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'anthropic-beta': 'oauth-2025-04-20',
-                'User-Agent': 'claude-hud/1.0',
-            },
-            timeout: 5000,
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '::1']);
+/** Whether a URL hostname refers to this machine. */
+function isLoopbackHost(hostname) {
+    if (!hostname)
+        return false;
+    const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    if (LOOPBACK_HOSTNAMES.has(host))
+        return true;
+    return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
+}
+/**
+ * A local Anthropic-API endpoint this session was pointed at, or null.
+ *
+ * Multi-account proxies (teamclaude and the like) launch Claude Code with
+ * ANTHROPIC_BASE_URL or HTTPS_PROXY aimed at a loopback port and rotate the
+ * account per request. The credentials file still holds whichever account
+ * ran the login, so asking api.anthropic.com directly reports a DIFFERENT
+ * account than the one this session is spending. The local endpoint knows
+ * the active one.
+ *
+ * Loopback only: a corporate HTTPS_PROXY is not an Anthropic API.
+ */
+export function resolveLocalEndpoint(env = process.env) {
+    const candidates = [
+        env.ANTHROPIC_BASE_URL,
+        env.HTTPS_PROXY, env.https_proxy, env.HTTP_PROXY, env.http_proxy,
+    ];
+    for (const raw of candidates) {
+        if (!raw)
+            continue;
+        let url;
+        try {
+            url = new URL(raw);
+        }
+        catch {
+            continue;
+        }
+        if (!isLoopbackHost(url.hostname))
+            continue;
+        return {
+            hostname: url.hostname.replace(/^\[|\]$/g, ''),
+            port: Number(url.port) || (url.protocol === 'https:' ? 443 : 80),
+            basePath: url.pathname.replace(/\/+$/, ''),
         };
-        const req = https.request(options, (res) => {
+    }
+    return null;
+}
+/** Cache key identifying where the numbers came from. */
+function endpointSource(endpoint) {
+    return endpoint ? `local:${endpoint.hostname}:${endpoint.port}${endpoint.basePath}` : 'direct';
+}
+function requestUsage(endpoint, accessToken) {
+    return new Promise((resolve) => {
+        const headers = {
+            'anthropic-beta': 'oauth-2025-04-20',
+            'User-Agent': 'claude-hud/1.0',
+        };
+        // A rotating proxy injects the active account's token upstream;
+        // sending ours would report the login account instead.
+        if (!endpoint)
+            headers['Authorization'] = `Bearer ${accessToken}`;
+        const options = endpoint
+            ? {
+                hostname: endpoint.hostname,
+                port: endpoint.port,
+                path: `${endpoint.basePath}/api/oauth/usage`,
+                method: 'GET',
+                headers,
+                timeout: 5000,
+            }
+            : {
+                hostname: 'api.anthropic.com',
+                path: '/api/oauth/usage',
+                method: 'GET',
+                headers,
+                timeout: 5000,
+            };
+        const req = (endpoint ? http : https).request(options, (res) => {
             let data = '';
             res.on('data', (chunk) => {
                 data += chunk.toString();
@@ -407,6 +479,11 @@ function fetchUsageApi(accessToken) {
                 }
                 try {
                     const parsed = JSON.parse(data);
+                    // Something unrelated may be on that loopback port.
+                    if (endpoint && parsed?.five_hour == null && parsed?.seven_day == null) {
+                        resolve({ data: null, error: 'shape' });
+                        return;
+                    }
                     resolve({ data: parsed });
                 }
                 catch (error) {
@@ -426,6 +503,19 @@ function fetchUsageApi(accessToken) {
         });
         req.end();
     });
+}
+/**
+ * Ask the local endpoint first when this session has one, falling back to
+ * api.anthropic.com on any failure so a stopped proxy never blanks the HUD.
+ */
+async function fetchUsageApi(accessToken, endpoint = null) {
+    if (endpoint) {
+        const local = await requestUsage(endpoint, accessToken);
+        if (local.data)
+            return local;
+        debug('Local endpoint failed, falling back to api.anthropic.com:', local.error);
+    }
+    return requestUsage(null, accessToken);
 }
 // Export for testing
 export function clearCache(homeDir) {
