@@ -209,8 +209,16 @@ function formatUsageSplit(usage) {
   };
   const barIdx = usage.indexOf('|');
   if (barIdx < 0) {
-    const five = fromPercent(usage);
-    return { sessionStr: five ? `⏳ session ${five}` : '', weeklyStr: '' };
+    const one = fromPercent(usage);
+    if (!one) return { sessionStr: '', weeklyStr: '' };
+    // 퍼센트가 없으면 수치 대신 상태 문구(`⚠ (429)` 등)가 온 것이다. hud 는 이때
+    // 세그먼트를 하나만 내보내므로 그대로 두면 weekly 줄이 통째로 빈칸이 된다.
+    // 같은 문구를 두 줄에 모두 걸어 3줄 레이아웃을 유지한다.
+    const status = !/\d+%/.test(usage);
+    return {
+      sessionStr: `⏳ session ${one}`,
+      weeklyStr: status ? `📅 weekly ${one}` : '',
+    };
   }
   const five = fromPercent(usage.slice(0, barIdx));
   const seven = fromPercent(usage.slice(barIdx + 1));

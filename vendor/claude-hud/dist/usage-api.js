@@ -61,6 +61,40 @@ function writeCache(homeDir, data, timestamp, source) {
         // Ignore cache write failures
     }
 }
+// 마지막으로 캐시에 들어간 수치를 TTL 과 무관하게 읽는다. 실패 응답도 직전 수치를
+// 싣고 저장되므로 조회가 계속 막혀도 값이 이어진다. 단 리셋 시각이 지난 창은 이미
+// 0 으로 돌아갔으니 버린다 - 옛날 수치를 현재값인 척 보여주지 않기 위해서다.
+function readPreviousUsage(homeDir, source, now) {
+    try {
+        const cachePath = getCachePath(homeDir);
+        if (!fs.existsSync(cachePath))
+            return null;
+        const cache = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+        if (cache.source !== source || !cache.data)
+            return null;
+        const alive = (value, resetAt) => {
+            if (value == null || !resetAt)
+                return { value: null, resetAt: null };
+            const at = new Date(resetAt);
+            if (isNaN(at.getTime()) || at.getTime() <= now)
+                return { value: null, resetAt: null };
+            return { value, resetAt: at };
+        };
+        const five = alive(cache.data.fiveHour, cache.data.fiveHourResetAt);
+        const seven = alive(cache.data.sevenDay, cache.data.sevenDayResetAt);
+        if (five.value === null && seven.value === null)
+            return null;
+        return {
+            fiveHour: five.value,
+            sevenDay: seven.value,
+            fiveHourResetAt: five.resetAt,
+            sevenDayResetAt: seven.resetAt,
+        };
+    }
+    catch {
+        return null;
+    }
+}
 const defaultDeps = {
     homeDir: () => os.homedir(),
     fetchApi: fetchUsageApi,
@@ -102,13 +136,16 @@ export async function getUsage(overrides = {}) {
         // Fetch usage from API
         const apiResult = await deps.fetchApi(accessToken, endpoint);
         if (!apiResult.data) {
-            // API call failed, cache the failure to prevent retry storms
+            // API call failed, cache the failure to prevent retry storms.
+            // 직전에 읽어 둔 수치는 실어 보낸다. 조회가 막혔을 뿐 사용량이 사라진 게
+            // 아니므로, 렌더러가 ⚠ 를 붙여 "마지막으로 본 값"으로 보여준다.
+            const previous = readPreviousUsage(homeDir, source, now);
             const failureResult = {
                 planName,
-                fiveHour: null,
-                sevenDay: null,
-                fiveHourResetAt: null,
-                sevenDayResetAt: null,
+                fiveHour: previous?.fiveHour ?? null,
+                sevenDay: previous?.sevenDay ?? null,
+                fiveHourResetAt: previous?.fiveHourResetAt ?? null,
+                sevenDayResetAt: previous?.sevenDayResetAt ?? null,
                 apiUnavailable: true,
                 apiError: apiResult.error,
             };

@@ -13,11 +13,15 @@ export function renderUsageLine(ctx) {
         return null;
     }
     const label = dim('🔋');
-    if (ctx.usageData.apiUnavailable) {
+    // 조회 실패(429 등)여도 직전 수치가 남아 있으면 그 값을 그대로 그리고 뒤에 ⚠ 만
+    // 붙인다. 줄을 통째로 경고로 덮으면 정작 알고 싶은 남은 한도가 사라진다.
+    const stale = ctx.usageData.apiUnavailable === true;
+    if (stale && ctx.usageData.fiveHour === null && ctx.usageData.sevenDay === null) {
         const errorHint = formatUsageError(ctx.usageData.apiError);
         return `${label} ${yellow(`⚠${errorHint}`)}`;
     }
-    if (isLimitReached(ctx.usageData)) {
+    const staleMark = stale ? ` ${yellow('⚠')}` : '';
+    if (!stale && isLimitReached(ctx.usageData)) {
         const resetTime = ctx.usageData.fiveHour === 100
             ? formatResetTime(ctx.usageData.fiveHourResetAt)
             : formatResetTime(ctx.usageData.sevenDayResetAt);
@@ -49,9 +53,9 @@ export function renderUsageLine(ctx) {
                 ? `${quotaBar(sevenDay)} ${sevenDayDisplay} (${sevenDayReset} / 7d)`
                 : `${quotaBar(sevenDay)} ${sevenDayDisplay}`)
             : `7d: ${sevenDayDisplay}`;
-        return `${label} ${fiveHourPart} | ${sevenDayPart}`;
+        return `${label} ${fiveHourPart}${staleMark} | ${sevenDayPart}${staleMark}`;
     }
-    return `${label} ${fiveHourPart}`;
+    return `${label} ${fiveHourPart}${staleMark}`;
 }
 function formatUsagePercent(percent) {
     if (percent === null) {
