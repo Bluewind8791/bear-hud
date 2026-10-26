@@ -12,7 +12,6 @@
 //       분리해 곰 옆 1/2/3줄에 재배치한다. 자식으로 실행하면 stdout 이 TTY 가 아니라
 //       claude-hud 의 줄바꿈(wrap)이 꺼져 헤더가 한 줄로 안정적으로 나온다.
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 
@@ -58,10 +57,10 @@ function safeExists(p) {
   try { return fs.existsSync(p); } catch { return false; }
 }
 
-// vendoring 한 claude-hud 의 dist/index.js 경로. setup.ps1 이 레포의
-// vendor/claude-hud 를 ~/.claude/statusline-hud 로 복사한다. (업데이트는 수동 재복사)
+// vendoring 한 claude-hud 의 dist/index.js 경로. 래퍼는 레포 clone 에서 바로 실행되므로
+// 같은 clone 의 vendor/ 를 쓴다 → git pull 만으로 래퍼와 HUD 가 함께 갱신된다.
 function findHud() {
-  const p = path.join(os.homedir(), '.claude', 'statusline-hud', 'dist', 'index.js');
+  const p = path.join(__dirname, 'vendor', 'claude-hud', 'dist', 'index.js');
   return safeExists(p) ? p : null;
 }
 

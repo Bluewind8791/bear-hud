@@ -1,10 +1,12 @@
 ﻿# claude-statusline 설치 스크립트
 #
 # 동작:
-#   1) statusline-merged.js 를 ~/.claude/ 로 복사
-#   2) vendor/claude-hud 를 ~/.claude/statusline-hud 로 복사 (vendoring 한 HUD)
-#   3) ~/.claude/settings.json 의 statusLine 블록만 갱신 (나머지 설정 보존)
-#   4) claude-hud config 의 sevenDayThreshold 를 0 으로 (📅 weekly 항상 표시)
+#   1) 예전 방식으로 ~/.claude/ 에 복사해 둔 래퍼·HUD 가 있으면 지운다
+#   2) ~/.claude/settings.json 의 statusLine 이 이 clone 의 래퍼를 바로 실행하게 한다
+#      (나머지 설정 보존) → 이후 업데이트는 git pull 만으로 끝난다
+#   3) claude-hud config 의 sevenDayThreshold 를 0 으로 (📅 weekly 항상 표시)
+#
+# clone 폴더를 옮기거나 지우면 상태표시줄이 깨진다. 옮겼으면 이 스크립트를 다시 실행.
 #
 # 사용: PowerShell 에서  .\setup.ps1
 #
@@ -18,7 +20,6 @@ $ErrorActionPreference = 'Stop'
 
 $claudeDir    = Join-Path $HOME '.claude'
 $src          = Join-Path $PSScriptRoot 'statusline-merged.js'
-$dst          = Join-Path $claudeDir 'statusline-merged.js'
 $settingsPath = Join-Path $claudeDir 'settings.json'
 
 function Test-Cmd($name) { [bool](Get-Command $name -ErrorAction SilentlyContinue) }
@@ -31,21 +32,12 @@ if (-not (Test-Cmd bash)) {
   Write-Warning "bash 를 PATH 에서 찾지 못함 → Git Bash 설치 필요"
 }
 
-# 1) 래퍼 복사
+# 1) 예전 설치본(복사본) 정리 - 이제 clone 을 바로 실행하므로 남겨 두면 헷갈리기만 한다
 if (-not (Test-Path $claudeDir)) { New-Item -ItemType Directory -Force $claudeDir | Out-Null }
-Copy-Item $src $dst -Force
-Write-Host "[1/4] 래퍼 복사 완료: $dst"
-
-# 1.5) vendoring 한 claude-hud 복사
-$hudSrc = Join-Path $PSScriptRoot 'vendor\claude-hud'
-$hudDst = Join-Path $claudeDir 'statusline-hud'
-if (Test-Path $hudSrc) {
-  if (Test-Path $hudDst) { Remove-Item $hudDst -Recurse -Force }
-  Copy-Item $hudSrc $hudDst -Recurse -Force
-  Write-Host "[2/4] HUD 복사 완료: $hudDst"
-} else {
-  Write-Warning "vendor\claude-hud 없음 → 곰 마스코트만 표시됨"
+foreach ($old in @((Join-Path $claudeDir 'statusline-merged.js'), (Join-Path $claudeDir 'statusline-hud'))) {
+  if (Test-Path $old) { Remove-Item $old -Recurse -Force }
 }
+Write-Host "[1/3] 예전 복사본 정리 완료"
 
 # 2) settings.json 의 statusLine 블록만 머지
 if (Test-Path $settingsPath) {
@@ -54,10 +46,11 @@ if (Test-Path $settingsPath) {
   $settings = [pscustomobject]@{}
 }
 
-# 경로 하드코딩 없음: $HOME 확장은 bash 가, node 는 PATH 가 처리 → 머신 독립적
+# clone 위치는 PC 마다 다르므로 이 스크립트의 위치를 박는다. bash 가 읽으니 / 로 바꾼다.
+$srcPath = $src -replace '\\', '/'
 $statusLine = [pscustomobject]@{
   type    = 'command'
-  command = 'bash -c ''node "$HOME/.claude/statusline-merged.js"'''
+  command = "bash -c 'node `"$srcPath`"'"
 }
 
 if ($settings.PSObject.Properties.Name -contains 'statusLine') {
@@ -69,7 +62,7 @@ if ($settings.PSObject.Properties.Name -contains 'statusLine') {
 # UTF-8 (BOM 없음) 으로 기록
 $out = $settings | ConvertTo-Json -Depth 100
 [System.IO.File]::WriteAllText($settingsPath, $out, (New-Object System.Text.UTF8Encoding($false)))
-Write-Host "[3/4] settings.json statusLine 갱신 완료"
+Write-Host "[2/3] settings.json statusLine 갱신 완료: $srcPath"
 
 # 3) claude-hud config 의 sevenDayThreshold 만 머지
 #    claude-hud 는 7일 사용률이 sevenDayThreshold(기본 80) 이상일 때만 7d 세그먼트를
@@ -95,7 +88,7 @@ $hudCfg.display | Add-Member -NotePropertyName sevenDayThreshold -NotePropertyVa
 if (-not (Test-Path $hudCfgDir)) { New-Item -ItemType Directory -Force $hudCfgDir | Out-Null }
 $hudOut = $hudCfg | ConvertTo-Json -Depth 100
 [System.IO.File]::WriteAllText($hudCfgPath, $hudOut, (New-Object System.Text.UTF8Encoding($false)))
-Write-Host "[4/4] claude-hud config 갱신 완료 (weekly 항상 표시)"
+Write-Host "[3/3] claude-hud config 갱신 완료 (weekly 항상 표시)"
 
 Write-Host ""
 Write-Host "완료. Claude Code 를 재시작하면 상태표시줄이 적용됩니다." -ForegroundColor Green

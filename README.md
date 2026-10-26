@@ -16,7 +16,7 @@
 |---|---|
 | `statusline-merged.js` | 핵심 래퍼. 외부 npm 의존성 없음(Node 내장 모듈만). vendored HUD 를 자식 프로세스로 실행해 출력을 재배치 |
 | `vendor/claude-hud/` | **claude-hud(MIT) vendoring 본**. `dist/`(런타임 .js만) + `LICENSE` + `package.json`(ESM 인식용). 플러그인 설치 불필요 |
-| `setup.ps1` | **(Windows)** `~/.claude/` 로 래퍼 복사 + `vendor/claude-hud` → `~/.claude/statusline-hud` 복사 + `settings.json` 의 `statusLine` 블록만 갱신 + claude-hud `config.json` 의 `sevenDayThreshold` 갱신 |
+| `setup.ps1` | **(Windows)** `settings.json` 의 `statusLine` 블록만 이 clone 의 래퍼를 실행하도록 갱신 + claude-hud `config.json` 의 `sevenDayThreshold` 갱신 + 예전 복사본(`~/.claude/statusline-merged.js`, `~/.claude/statusline-hud`) 정리 |
 | `setup.bat` | **(Windows)** `setup.ps1` 을 실행 정책 우회로 실행하는 더블클릭용 래퍼 |
 | `setup.sh` | **(macOS / Linux)** `setup.ps1` 과 동일한 동작을 하는 셸 스크립트 (JSON 머지는 Node 로 처리) |
 
@@ -55,10 +55,16 @@ cd claude-statusline
 
 Claude Code 재시작 → 적용.
 
+### 업데이트
+설치는 PC 마다 한 번이면 된다. 이후로는 clone 에서 `git pull` 만 하면 다음 상태표시줄
+갱신부터 바로 반영된다(재설치·재시작 불필요).
+
+clone 폴더를 옮기거나 지우면 상태표시줄이 깨진다. 옮겼다면 새 위치에서 setup 을 다시 실행.
+
 ## 동작 원리
-- 설치 스크립트(`setup.ps1` / `setup.sh`)가 쓰는 명령: `bash -c 'node "$HOME/.claude/statusline-merged.js"'`
-  - 경로 하드코딩 없음: `$HOME` 은 bash 가, `node` 는 PATH 가 해석 → 머신 독립적
-- 래퍼는 `~/.claude/statusline-hud/dist/index.js`(vendored HUD)를 실행
+- 설치 스크립트(`setup.ps1` / `setup.sh`)가 쓰는 명령: `bash -c 'node "<clone 경로>/statusline-merged.js"'`
+  - clone 경로는 setup 이 자기 위치로 채운다. `node` 는 PATH 가 해석
+- 래퍼는 같은 clone 의 `vendor/claude-hud/dist/index.js`(vendored HUD)를 실행
 - HUD 가 없으면 곰 마스코트만 표시(graceful fallback)
 - claude-hud 는 7일 사용률이 `sevenDayThreshold`(**기본 80**) 이상일 때만 7d 세그먼트를 렌더한다.
   그대로 두면 주간 사용률이 80% 를 넘기 전까지 `📅 weekly` 줄이 안 보이므로, 설치 스크립트가
@@ -75,7 +81,7 @@ vendoring 이라 자동 업데이트가 안 됩니다. 최신 claude-hud 를 반
 1. 플러그인으로 최신본을 받거나(`/plugin install claude-hud`) GitHub 릴리스에서 `dist/` 확보
 2. `vendor/claude-hud/dist/` 를 새 `dist/` 로 교체 (런타임 `.js` 만, `.map`/`.d.ts` 제외)
 3. `vendor/claude-hud/package.json` 의 `version` 갱신
-4. 커밋 → 각 PC 에서 pull 후 재설치 (Windows: `.\setup.ps1`, macOS/Linux: `./setup.sh`)
+4. 커밋 → 각 PC 에서 `git pull`
 
 ## 환경 변수 (선택)
 - `BEAR_MOOD=react` — 한도 사용률에 곰 무드 연동 (기본: 랜덤)
