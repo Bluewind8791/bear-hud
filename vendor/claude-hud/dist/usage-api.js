@@ -12,6 +12,7 @@ const LEGACY_KEYCHAIN_SERVICE_NAME = 'Claude Code-credentials';
 // File-based cache (HUD runs as new process each render, so in-memory cache won't persist)
 const CACHE_TTL_MS = 60_000; // 60 seconds
 const CACHE_FAILURE_TTL_MS = 15_000; // 15 seconds for failed requests
+const RATE_LIMIT_BACKOFF_MS = 5 * 60_000; // 429 에 Retry-After(초)가 없을 때 쉬는 시간
 const KEYCHAIN_TIMEOUT_MS = 3000;
 const KEYCHAIN_BACKOFF_MS = 60_000; // Backoff on keychain failures to avoid re-prompting
 function getCachePath(homeDir) {
@@ -30,7 +31,9 @@ function readCache(homeDir, now, source) {
             return null;
         // Check TTL - use shorter TTL for failure results
         const ttl = cache.data.apiUnavailable ? CACHE_FAILURE_TTL_MS : CACHE_TTL_MS;
-        if (now - cache.timestamp >= ttl)
+        // 429 를 받았으면 서버가 정한 시각까지는 TTL 이 지나도 다시 부르지 않는다.
+        // 15초마다 두드리면 429 가 풀리지 않고 계속 이어진다.
+        if (now - cache.timestamp >= ttl && !(cache.data.retryUntil > now))
             return null;
         // JSON.stringify converts Date to ISO string, so we need to reconvert on read.
         // new Date() handles both Date objects and ISO strings safely.
@@ -101,6 +104,7 @@ const defaultDeps = {
     now: () => Date.now(),
     readKeychain: readKeychainCredentials,
     resolveEndpoint: () => resolveLocalEndpoint(process.env),
+    rateLimits: undefined,
 };
 /**
  * Get OAuth usage data from Anthropic API.
@@ -116,6 +120,24 @@ export async function getUsage(overrides = {}) {
     const homeDir = deps.homeDir();
     const endpoint = deps.resolveEndpoint();
     const source = endpointSource(endpoint);
+    // Claude Code 가 stdin 으로 넘겨준 rate_limits 가 있으면 API 를 부르지 않고 그 값을
+    // 쓴다. 응답 헤더에서 받은 이 세션의 실제 수치라 캐시보다 앞선다. 캐시에도 적어
+    // 두어 아직 값이 없는 다른 세션(첫 응답 전)이 API 대신 이걸 읽게 한다.
+    const fromStdin = usageFromRateLimits(deps.rateLimits);
+    if (fromStdin) {
+        try {
+            const credentials = readCredentials(homeDir, now, deps.readKeychain);
+            const planName = credentials ? getPlanName(credentials.subscriptionType) : null;
+            if (!planName)
+                return null;
+            const result = { planName, ...fromStdin };
+            writeCache(homeDir, result, now, source);
+            return result;
+        }
+        catch (error) {
+            debug('stdin rate_limits failed:', error);
+        }
+    }
     // Check file-based cache first
     const cached = readCache(homeDir, now, source);
     if (cached) {
@@ -148,6 +170,7 @@ export async function getUsage(overrides = {}) {
                 sevenDayResetAt: previous?.sevenDayResetAt ?? null,
                 apiUnavailable: true,
                 apiError: apiResult.error,
+                retryUntil: apiResult.retryAfterMs ? now + apiResult.retryAfterMs : undefined,
             };
             writeCache(homeDir, failureResult, now, source);
             return failureResult;
@@ -414,6 +437,30 @@ function parseUtilization(value) {
         return null; // Handles NaN and Infinity
     return Math.round(Math.max(0, Math.min(100, value)));
 }
+/** stdin 의 rate_limits 를 usageData 꼴로 바꾼다. 두 창 다 없으면 null */
+function usageFromRateLimits(rateLimits) {
+    const fiveHour = parseUtilization(rateLimits?.five_hour?.used_percentage);
+    const sevenDay = parseUtilization(rateLimits?.seven_day?.used_percentage);
+    if (fiveHour === null && sevenDay === null)
+        return null;
+    return {
+        fiveHour,
+        sevenDay,
+        fiveHourResetAt: parseEpochSeconds(rateLimits.five_hour?.resets_at),
+        sevenDayResetAt: parseEpochSeconds(rateLimits.seven_day?.resets_at),
+    };
+}
+/** resets_at 은 Unix epoch 초 단위다 */
+function parseEpochSeconds(value) {
+    if (!Number.isFinite(value))
+        return null;
+    return new Date(value * 1000);
+}
+/** Retry-After 를 ms 로. 초 단위가 아니거나(HTTP-date) 없으면 기본 백오프 */
+function parseRetryAfter(value) {
+    const seconds = Number(value);
+    return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : RATE_LIMIT_BACKOFF_MS;
+}
 /** Parse ISO date string safely, returning null for invalid dates */
 function parseDate(dateStr) {
     if (!dateStr)
@@ -511,7 +558,11 @@ function requestUsage(endpoint, accessToken) {
             res.on('end', () => {
                 if (res.statusCode !== 200) {
                     debug('API returned non-200 status:', res.statusCode);
-                    resolve({ data: null, error: res.statusCode ? `http-${res.statusCode}` : 'http-error' });
+                    resolve({
+                        data: null,
+                        error: res.statusCode ? `http-${res.statusCode}` : 'http-error',
+                        retryAfterMs: res.statusCode === 429 ? parseRetryAfter(res.headers['retry-after']) : null,
+                    });
                     return;
                 }
                 try {
