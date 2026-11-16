@@ -1,4 +1,4 @@
-# claude-statusline
+# bear-hud
 
 곰 마스코트(좌측 3줄) + [claude-hud](https://github.com/jarrodwatts/claude-hud) 출력을
 재배치해 합치는 Claude Code 상태표시줄 래퍼.
@@ -57,7 +57,7 @@
 
 Claude Code 안에서:
 ```
-/plugin marketplace add Bluewind8791/claude-statusline
+/plugin marketplace add Bluewind8791/bear-hud
 /plugin install bear-hud@bear-hud
 /reload-plugins
 /bear
@@ -75,8 +75,8 @@ clone 방식으로 설치했던 PC 도 `/bear` 를 한 번 실행하면 플러�
 
 공통으로 먼저 clone:
 ```
-git clone https://github.com/Bluewind8791/claude-statusline.git
-cd claude-statusline
+git clone https://github.com/Bluewind8791/bear-hud.git
+cd bear-hud
 ```
 
 **Windows** — 둘 중 하나:

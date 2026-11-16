@@ -1,4 +1,4 @@
-﻿# claude-statusline 설치 스크립트
+﻿# bear-hud 설치 스크립트
 #
 # 동작:
 #   1) 예전 방식으로 ~/.claude/ 에 복사해 둔 래퍼·HUD 가 있으면 지운다

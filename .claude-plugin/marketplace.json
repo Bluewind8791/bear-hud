@@ -4,7 +4,7 @@
     "name": "Bluewind8791"
   },
   "metadata": {
-    "description": "곰 마스코트 + claude-hud 상태표시줄 (Bluewind8791/claude-statusline)"
+    "description": "곰 마스코트 + claude-hud 상태표시줄 (Bluewind8791/bear-hud)"
   },
   "plugins": [
     {
