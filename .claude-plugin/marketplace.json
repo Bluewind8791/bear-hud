@@ -1,0 +1,16 @@
+{
+  "name": "bear-hud",
+  "owner": {
+    "name": "Bluewind8791"
+  },
+  "metadata": {
+    "description": "곰 마스코트 + claude-hud 상태표시줄 (Bluewind8791/claude-statusline)"
+  },
+  "plugins": [
+    {
+      "name": "bear-hud",
+      "source": "./",
+      "description": "곰 마스코트 + claude-hud 를 합친 Claude Code 상태표시줄. 설치 후 /bear 로 설정한다."
+    }
+  ]
+}

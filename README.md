@@ -19,6 +19,10 @@
 | `setup.ps1` | **(Windows)** `settings.json` 의 `statusLine` 블록만 이 clone 의 래퍼를 실행하도록 갱신 + claude-hud `config.json` 의 `sevenDayThreshold` 갱신 + 예전 복사본(`~/.claude/statusline-merged.js`, `~/.claude/statusline-hud`) 정리 |
 | `setup.bat` | **(Windows)** `setup.ps1` 을 실행 정책 우회로 실행하는 더블클릭용 래퍼 |
 | `setup.sh` | **(macOS / Linux)** `setup.ps1` 과 동일한 동작을 하는 셸 스크립트 (JSON 머지는 Node 로 처리) |
+| `.claude-plugin/` | 이 레포를 Claude Code 플러그인 `bear-hud` 이자 같은 이름의 마켓플레이스로 만드는 manifest |
+| `skills/bear/` | 플러그인의 `/bear` 스킬. `install.js` 를 실행한다 |
+| `install.js` | **(플러그인)** `launcher.js` 를 `~/.claude/bear-hud/` 에 복사 + `statusLine` 을 그 launcher 로 갱신 + `sevenDayThreshold` 갱신 |
+| `launcher.js` | **(플러그인)** 실행할 때마다 플러그인 cache 의 현재 버전 폴더를 찾아 그 안의 래퍼를 실행 |
 
 > claude-hud 는 MIT 라이선스라 vendoring 이 허용됩니다. `vendor/claude-hud/LICENSE` 로 고지를 포함합니다.
 
@@ -49,7 +53,25 @@
 
 > claude-hud 플러그인 설치는 **불필요** — `vendor/` 에 포함돼 있음.
 
-### 설치
+### 설치 (플러그인, 권장)
+
+Claude Code 안에서:
+```
+/plugin marketplace add Bluewind8791/claude-statusline
+/plugin install bear-hud@bear-hud
+/reload-plugins
+/bear
+```
+
+`/bear` 가 `statusLine` 을 설정한다. 다른 상태표시줄이 이미 설정돼 있으면 바꾸기 전에 묻고,
+바꿀 때는 `settings.json` 을 `settings.json.bak-bear-hud` 로 백업한다.
+clone 방식으로 설치했던 PC 도 `/bear` 를 한 번 실행하면 플러그인 쪽으로 바뀌고, 그 뒤 clone 폴더는 지워도 된다.
+
+**업데이트:** 직접 만든 마켓플레이스는 자동 업데이트가 기본으로 꺼져 있다. `/plugin` → Marketplaces →
+`bear-hud` → **Enable auto-update** 를 한 번 켜 두거나, 손으로 `claude plugin update bear-hud@bear-hud` 를 실행한다.
+`version` 을 정하지 않아서 커밋마다 새 버전으로 받는다. `/bear` 를 다시 실행할 필요는 없다.
+
+### 설치 (clone)
 
 공통으로 먼저 clone:
 ```
@@ -68,7 +90,7 @@ cd claude-statusline
 
 Claude Code 재시작 → 적용.
 
-### 업데이트
+### 업데이트 (clone)
 설치는 PC 마다 한 번이면 된다. 이후로는 clone 에서 `git pull` 만 하면 다음 상태표시줄
 갱신부터 바로 반영된다(재설치·재시작 불필요).
 
@@ -77,6 +99,11 @@ clone 폴더를 옮기거나 지우면 상태표시줄이 깨진다. 옮겼다�
 ## 동작 원리
 - 설치 스크립트(`setup.ps1` / `setup.sh`)가 쓰는 명령: `bash -c 'node "<clone 경로>/statusline-merged.js"'`
   - clone 경로는 setup 이 자기 위치로 채운다. `node` 는 PATH 가 해석
+- 플러그인 설치본(`/bear`)이 쓰는 명령: `bash -c 'node "~/.claude/bear-hud/launcher.js" "<플러그인 cache 폴더>"'`
+  - 플러그인은 `statusLine` 을 직접 정할 수 없어서 `/bear` 가 `settings.json` 에 쓴다
+  - 플러그인 cache 는 버전마다 폴더가 다르고(`~/.claude/plugins/cache/bear-hud/bear-hud/<version>/`),
+    업데이트되면 이전 폴더에 `.orphaned_at` 이 붙었다가 14일 뒤 지워진다. 그래서 launcher 를 버전과 무관한
+    위치에 두고, 실행할 때마다 `.orphaned_at` 이 없는 최신 폴더의 래퍼를 실행한다
 - 래퍼는 같은 clone 의 `vendor/claude-hud/dist/index.js`(vendored HUD)를 실행
 - HUD 가 없으면 곰 마스코트만 표시(graceful fallback)
 - claude-hud 는 7일 사용률이 `sevenDayThreshold`(**기본 80**) 이상일 때만 7d 세그먼트를 렌더한다.

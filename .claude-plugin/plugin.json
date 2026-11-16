@@ -1,0 +1,12 @@
+{
+  "name": "bear-hud",
+  "description": "곰 마스코트 + claude-hud 를 합친 Claude Code 상태표시줄. 설치 후 /bear 로 설정한다.",
+  "author": {
+    "name": "Bluewind8791",
+    "url": "https://github.com/Bluewind8791"
+  },
+  "homepage": "https://github.com/Bluewind8791/claude-statusline",
+  "repository": "https://github.com/Bluewind8791/claude-statusline",
+  "license": "MIT",
+  "keywords": ["statusline", "hud", "claude-hud"]
+}
