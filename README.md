@@ -31,8 +31,9 @@
 - 사용량 조회가 실패해도 직전 수치를 유지하고 뒤에 `⚠` 를 붙인다
 - 로컬 프록시(loopback 의 `ANTHROPIC_BASE_URL` / `HTTPS_PROXY`)를 거치는 세션에서는 실제로 소모 중인 계정의 사용량을 읽는다
 - 컨텍스트 사용률 색상 임계값을 85% / 70% 에서 80% / 30% 로 낮춘다
+- 레포 자체 git 설정(`core.fsmonitor`, 레포 filter driver, partial clone 의 lazy fetch)이 상태표시줄을 그릴 때 명령을 실행하지 못하게 한다. upstream 0.11.1 / 0.15.0 의 보안 수정(GHSA-fq7j-8hxj-jfqh 등)을 옮긴 것이다
 
-수정 위치: `dist/index.js`, `dist/usage-api.js`, `dist/render/colors.js`, `dist/render/lines/usage.js`.
+수정 위치: `dist/index.js`, `dist/usage-api.js`, `dist/git.js`, `dist/render/colors.js`, `dist/render/lines/usage.js`.
 
 ## 새 PC 설치
 
