@@ -15,12 +15,24 @@
 | 경로 | 역할 |
 |---|---|
 | `statusline-merged.js` | 핵심 래퍼. 외부 npm 의존성 없음(Node 내장 모듈만). vendored HUD 를 자식 프로세스로 실행해 출력을 재배치 |
-| `vendor/claude-hud/` | **claude-hud(MIT) vendoring 본**. `dist/`(런타임 .js만) + `LICENSE` + `package.json`(ESM 인식용). 플러그인 설치 불필요 |
+| `vendor/claude-hud/` | **claude-hud(MIT) vendoring 본을 수정한 것**. `dist/`(런타임 .js만) + `LICENSE` + `package.json`(ESM 인식용). 플러그인 설치 불필요 |
 | `setup.ps1` | **(Windows)** `settings.json` 의 `statusLine` 블록만 이 clone 의 래퍼를 실행하도록 갱신 + claude-hud `config.json` 의 `sevenDayThreshold` 갱신 + 예전 복사본(`~/.claude/statusline-merged.js`, `~/.claude/statusline-hud`) 정리 |
 | `setup.bat` | **(Windows)** `setup.ps1` 을 실행 정책 우회로 실행하는 더블클릭용 래퍼 |
 | `setup.sh` | **(macOS / Linux)** `setup.ps1` 과 동일한 동작을 하는 셸 스크립트 (JSON 머지는 Node 로 처리) |
 
 > claude-hud 는 MIT 라이선스라 vendoring 이 허용됩니다. `vendor/claude-hud/LICENSE` 로 고지를 포함합니다.
+
+### claude-hud 원본 대비 수정 사항
+`vendor/claude-hud/dist/` 는 [jarrodwatts/claude-hud](https://github.com/jarrodwatts/claude-hud) 의
+빌드 결과물을 가져와 직접 고친 것이다. 원본과 다른 점:
+
+- 사용량을 Claude Code 가 stdin 으로 주는 `rate_limits` 에서 먼저 읽는다
+- 사용량 API 가 429 를 주면 `Retry-After` 만큼 다시 조회하지 않는다
+- 사용량 조회가 실패해도 직전 수치를 유지하고 뒤에 `⚠` 를 붙인다
+- 로컬 프록시(loopback 의 `ANTHROPIC_BASE_URL` / `HTTPS_PROXY`)를 거치는 세션에서는 실제로 소모 중인 계정의 사용량을 읽는다
+- 컨텍스트 사용률 색상 임계값을 85% / 70% 에서 80% / 30% 로 낮춘다
+
+수정 위치: `dist/index.js`, `dist/usage-api.js`, `dist/render/colors.js`, `dist/render/lines/usage.js`.
 
 ## 새 PC 설치
 
@@ -79,7 +91,8 @@ clone 폴더를 옮기거나 지우면 상태표시줄이 깨진다. 옮겼다�
 vendoring 이라 자동 업데이트가 안 됩니다. 최신 claude-hud 를 반영하려면:
 
 1. 플러그인으로 최신본을 받거나(`/plugin install claude-hud`) GitHub 릴리스에서 `dist/` 확보
-2. `vendor/claude-hud/dist/` 를 새 `dist/` 로 교체 (런타임 `.js` 만, `.map`/`.d.ts` 제외)
+2. `vendor/claude-hud/dist/` 를 새 `dist/` 로 교체 (런타임 `.js` 만, `.map`/`.d.ts` 제외).
+   교체하면 위 「claude-hud 원본 대비 수정 사항」이 사라지므로 새 `dist/` 에 다시 적용해야 한다
 3. `vendor/claude-hud/package.json` 의 `version` 갱신
 4. 커밋 → 각 PC 에서 `git pull`
 
